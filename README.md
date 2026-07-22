@@ -1,6 +1,6 @@
-# Blobstore
+# Objectstore
 
-Blobstore is a small Go abstraction over key-addressed object storage. It
+Objectstore is a small Go abstraction over key-addressed object storage. It
 provides one `Bucket` interface with filesystem and S3-compatible
 implementations, plus wrappers for key prefixes, metering, resilient reads,
 and concurrent ranged downloads.
@@ -11,7 +11,7 @@ preconditions, reads return opaque entity tags, listings are ordered and
 paginated, and callers retain responsibility for closing response bodies.
 
 ```go
-bucket, err := blobstore.Open(ctx, "s3://example/data?region=us-west-2")
+bucket, err := objectstore.Open(ctx, "s3://example/data?region=us-west-2")
 if err != nil {
 	return err
 }
@@ -21,7 +21,7 @@ etag, err := bucket.Put(
 	"state/current",
 	strings.NewReader("value"),
 	int64(len("value")),
-	blobstore.IfAbsent(),
+	objectstore.IfAbsent(),
 )
 ```
 
@@ -35,7 +35,7 @@ every backend.
 - `OpenS3` supports Amazon S3 and services implementing the S3 API.
 - `Open` constructs either backend from a `file://` or `s3://` URL.
 
-Blobstore is pre-1.0. Public APIs and operational behavior may change between
+Objectstore is pre-1.0. Public APIs and operational behavior may change between
 minor releases.
 
 ## Development
@@ -47,4 +47,4 @@ go test -timeout=2s ./...
 go vet ./...
 ```
 
-Blobstore is licensed under the [Apache License 2.0](LICENSE).
+Objectstore is licensed under the [Apache License 2.0](LICENSE).

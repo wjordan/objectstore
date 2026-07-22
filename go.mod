@@ -1,4 +1,4 @@
-module github.com/wjordan/blobstore
+module github.com/wjordan/objectstore
 
 go 1.25.0
 

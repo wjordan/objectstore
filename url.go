@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"context"
@@ -34,11 +34,11 @@ import (
 //     carry credentials.
 func Open(ctx context.Context, raw string) (Bucket, error) {
 	if raw == "" {
-		return nil, errors.New("blobstore: empty URL")
+		return nil, errors.New("objectstore: empty URL")
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("blobstore: parse %q: %w", raw, err)
+		return nil, fmt.Errorf("objectstore: parse %q: %w", raw, err)
 	}
 	switch u.Scheme {
 	case "file":
@@ -46,16 +46,16 @@ func Open(ctx context.Context, raw string) (Bucket, error) {
 	case "s3":
 		return openS3URL(ctx, u)
 	default:
-		return nil, fmt.Errorf("blobstore: unsupported scheme %q in %q", u.Scheme, raw)
+		return nil, fmt.Errorf("objectstore: unsupported scheme %q in %q", u.Scheme, raw)
 	}
 }
 
 func openFileURL(u *url.URL) (Bucket, error) {
 	if u.Host != "" && u.Host != "localhost" {
-		return nil, fmt.Errorf("blobstore: file:// host must be empty or localhost, got %q", u.Host)
+		return nil, fmt.Errorf("objectstore: file:// host must be empty or localhost, got %q", u.Host)
 	}
 	if u.Path == "" {
-		return nil, errors.New("blobstore: file:// URL missing path")
+		return nil, errors.New("objectstore: file:// URL missing path")
 	}
 	return OpenFS(u.Path)
 }
@@ -71,7 +71,7 @@ func openS3URL(ctx context.Context, u *url.URL) (Bucket, error) {
 	}
 	if v := u.Query().Get("heal"); v != "" {
 		if on, err := strconv.ParseBool(v); err != nil {
-			return nil, fmt.Errorf("blobstore: invalid heal=%q: %w", v, err)
+			return nil, fmt.Errorf("objectstore: invalid heal=%q: %w", v, err)
 		} else if !on {
 			return b, nil
 		}
@@ -83,11 +83,11 @@ func openS3URL(ctx context.Context, u *url.URL) (Bucket, error) {
 // parsing is unit-testable apart from SDK client construction.
 func s3ConfigFromURL(u *url.URL) (S3Config, error) {
 	if u.User != nil {
-		return S3Config{}, errors.New("blobstore: s3:// URL must not embed credentials; use the SDK credential chain")
+		return S3Config{}, errors.New("objectstore: s3:// URL must not embed credentials; use the SDK credential chain")
 	}
 	bucket := u.Host
 	if bucket == "" {
-		return S3Config{}, errors.New("blobstore: s3:// URL missing bucket")
+		return S3Config{}, errors.New("objectstore: s3:// URL missing bucket")
 	}
 	q := u.Query()
 	cfg := S3Config{
@@ -110,7 +110,7 @@ func s3ConfigFromURL(u *url.URL) (S3Config, error) {
 	if v := q.Get("path-style"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
-			return S3Config{}, fmt.Errorf("blobstore: invalid path-style=%q: %w", v, err)
+			return S3Config{}, fmt.Errorf("objectstore: invalid path-style=%q: %w", v, err)
 		}
 		cfg.UsePathStyle = b
 	}
@@ -121,13 +121,13 @@ func s3ConfigFromURL(u *url.URL) (S3Config, error) {
 		case "6":
 			// default dual-stack already prefers IPv6 when available
 		default:
-			return S3Config{}, fmt.Errorf("blobstore: invalid ip-version=%q (want 4 or 6)", v)
+			return S3Config{}, fmt.Errorf("objectstore: invalid ip-version=%q (want 4 or 6)", v)
 		}
 	}
 	if v := q.Get("clients"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 1 {
-			return S3Config{}, fmt.Errorf("blobstore: invalid clients=%q (want a positive integer)", v)
+			return S3Config{}, fmt.Errorf("objectstore: invalid clients=%q (want a positive integer)", v)
 		}
 		cfg.Clients = n
 	}

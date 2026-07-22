@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"context"
@@ -105,7 +105,7 @@ func (c *clientSet) warnEvicted(i int, rate float64, inflight int64) {
 	if now-last < int64(5*time.Second) || !c.lastLog.CompareAndSwap(last, now) {
 		return
 	}
-	slog.Warn("blobstore: evicting path-pinned transport",
+	slog.Warn("objectstore: evicting path-pinned transport",
 		"stripe", i, "rate_bps", int64(rate), "inflight", inflight)
 }
 

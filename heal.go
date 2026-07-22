@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"context"
@@ -44,7 +44,7 @@ func (o HealOpts) withDefaults() HealOpts {
 // The final allowed connection is kept while it makes forward progress,
 // however slowly, so the throughput floor cannot make a read impossible.
 //
-// Objects are assumed immutable for the duration of a read (blobstore
+// Objects are assumed immutable for the duration of a read (objectstore
 // keys are content-addressed in practice); as a guard, the object's
 // ETag is captured on the first heal and any later change aborts the
 // read. Callers' integrity checks (sha verify) remain the backstop.
@@ -170,7 +170,7 @@ func (r *healingBody) heal(cause error) error {
 	r.dog.stop()
 	r.cur.Close()
 	if r.attempts >= r.b.opts.Attempts {
-		return fmt.Errorf("blobstore: read %q: %d connections exhausted: %w", r.key, r.attempts, cause)
+		return fmt.Errorf("objectstore: read %q: %d connections exhausted: %w", r.key, r.attempts, cause)
 	}
 	if err := sleepHeal(r.ctx, r.b.opts.Backoff); err != nil {
 		return err
@@ -178,12 +178,12 @@ func (r *healingBody) heal(cause error) error {
 	// ETag guard: capture on first heal, verify on later ones.
 	info, err := r.b.Bucket.Stat(r.ctx, r.key)
 	if err != nil {
-		return fmt.Errorf("blobstore: heal %q: stat: %w", r.key, err)
+		return fmt.Errorf("objectstore: heal %q: stat: %w", r.key, err)
 	}
 	if r.etag == "" {
 		r.etag = info.ETag
 	} else if info.ETag != r.etag {
-		return fmt.Errorf("blobstore: heal %q: object changed mid-read (etag %s -> %s)", r.key, r.etag, info.ETag)
+		return fmt.Errorf("objectstore: heal %q: object changed mid-read (etag %s -> %s)", r.key, r.etag, info.ETag)
 	}
 	newOff := r.off + r.consumed
 	var newLen int64
@@ -192,7 +192,7 @@ func (r *healingBody) heal(cause error) error {
 	}
 	body, err := r.b.Bucket.GetRange(r.ctx, r.key, newOff, newLen)
 	if err != nil {
-		return fmt.Errorf("blobstore: heal %q: %w", r.key, err)
+		return fmt.Errorf("objectstore: heal %q: %w", r.key, err)
 	}
 	r.attempts++
 	warnHeal(r.key, newOff, r.attempts, cause)
@@ -218,7 +218,7 @@ func warnHeal(key string, off int64, attempt int, cause error) {
 	if now-last < int64(5*time.Second) || !lastHealWarn.CompareAndSwap(last, now) {
 		return
 	}
-	slog.Warn("blobstore: healing slow/broken read on a fresh connection",
+	slog.Warn("objectstore: healing slow/broken read on a fresh connection",
 		"key", key, "resume_off", off, "attempt", attempt, "cause", cause)
 }
 

@@ -1,4 +1,4 @@
-// Package blobstore provides a small object-storage abstraction with S3 and
+// Package objectstore provides a small object-storage abstraction with S3 and
 // filesystem implementations. Bucket mirrors common object-store semantics so
 // implementations remain thin and callers can use conditional writes, ranged
 // reads, and ordered listings without depending on a provider SDK.
@@ -12,7 +12,7 @@
 // Errors: every method returns ErrNotFound for a missing key and
 // ErrPreconditionFailed for a conditional write whose precondition did
 // not hold. Other errors are wrapped with operation context.
-package blobstore
+package objectstore
 
 import (
 	"context"
@@ -23,11 +23,11 @@ import (
 
 // ErrNotFound is returned by Get, GetRange, and Delete when the key
 // does not exist. Callers can use errors.Is.
-var ErrNotFound = errors.New("blobstore: object not found")
+var ErrNotFound = errors.New("objectstore: object not found")
 
 // ErrPreconditionFailed is returned by Put / PutStream when the
 // supplied ifMatch precondition did not hold. Callers can use errors.Is.
-var ErrPreconditionFailed = errors.New("blobstore: precondition failed")
+var ErrPreconditionFailed = errors.New("objectstore: precondition failed")
 
 // ObjectInfo describes one object in a List response.
 type ObjectInfo struct {

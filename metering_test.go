@@ -1,30 +1,30 @@
-package blobstore_test
+package objectstore_test
 
 import (
 	"bytes"
 	"context"
 	"testing"
 
-	"github.com/wjordan/blobstore"
+	"github.com/wjordan/objectstore"
 )
 
 func TestMeteredCountsListWork(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	fs, err := blobstore.OpenFS(t.TempDir())
+	fs, err := objectstore.OpenFS(t.TempDir())
 	if err != nil {
 		t.Fatalf("OpenFS: %v", err)
 	}
-	m := blobstore.NewMetered(fs, func(key string) string {
+	m := objectstore.NewMetered(fs, func(key string) string {
 		if len(key) >= 3 && key[:3] == "db/" {
 			return "db"
 		}
 		return "other"
 	})
-	if _, err := m.Put(ctx, "db/a", bytes.NewReader([]byte("abc")), 3, blobstore.IfAbsent()); err != nil {
+	if _, err := m.Put(ctx, "db/a", bytes.NewReader([]byte("abc")), 3, objectstore.IfAbsent()); err != nil {
 		t.Fatalf("Put db/a: %v", err)
 	}
-	if _, err := m.Put(ctx, "other/b", bytes.NewReader([]byte("zz")), 2, blobstore.IfAbsent()); err != nil {
+	if _, err := m.Put(ctx, "other/b", bytes.NewReader([]byte("zz")), 2, objectstore.IfAbsent()); err != nil {
 		t.Fatalf("Put other/b: %v", err)
 	}
 	if _, err := m.List(ctx, "db/", ""); err != nil {

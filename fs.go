@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"context"
@@ -39,26 +39,26 @@ type FS struct {
 // with 0o755 if it does not exist.
 func OpenFS(root string) (*FS, error) {
 	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, fmt.Errorf("blobstore/fs: mkdir root %q: %w", root, err)
+		return nil, fmt.Errorf("objectstore/fs: mkdir root %q: %w", root, err)
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("blobstore/fs: abs %q: %w", root, err)
+		return nil, fmt.Errorf("objectstore/fs: abs %q: %w", root, err)
 	}
 	return &FS{root: abs}, nil
 }
 
 func (f *FS) keyPath(key string) (string, error) {
 	if key == "" {
-		return "", errors.New("blobstore/fs: empty key")
+		return "", errors.New("objectstore/fs: empty key")
 	}
 	if strings.Contains(key, "..") {
-		return "", fmt.Errorf("blobstore/fs: refusing key with %q: %q", "..", key)
+		return "", fmt.Errorf("objectstore/fs: refusing key with %q: %q", "..", key)
 	}
 	parts := strings.Split(key, "/")
 	for _, p := range parts {
 		if p == "" {
-			return "", fmt.Errorf("blobstore/fs: empty key segment in %q", key)
+			return "", fmt.Errorf("objectstore/fs: empty key segment in %q", key)
 		}
 	}
 	return filepath.Join(append([]string{f.root}, parts...)...), nil
@@ -74,7 +74,7 @@ func (f *FS) Put(ctx context.Context, key string, body io.Reader, length int64, 
 		return "", err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", fmt.Errorf("blobstore/fs: mkdir parent: %w", err)
+		return "", fmt.Errorf("objectstore/fs: mkdir parent: %w", err)
 	}
 	tmp := path + ".tmp." + randSuffix()
 	etag, err := writeAndSync(tmp, body, length)
@@ -111,7 +111,7 @@ func (f *FS) PutStream(ctx context.Context, key string, body io.Reader, ifMatch 
 	// compressor) finishes without deadlocking even when the put will
 	// ultimately fail.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", fmt.Errorf("blobstore/fs: mkdir parent: %w", err)
+		return "", fmt.Errorf("objectstore/fs: mkdir parent: %w", err)
 	}
 	tmp := path + ".tmp." + randSuffix()
 	etag, err := writeAndSync(tmp, body, -1)
@@ -147,14 +147,14 @@ func (f *FS) Get(ctx context.Context, key string) (io.ReadCloser, string, error)
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, "", ErrNotFound
 		}
-		return nil, "", fmt.Errorf("blobstore/fs: etag %q: %w", key, err)
+		return nil, "", fmt.Errorf("objectstore/fs: etag %q: %w", key, err)
 	}
 	file, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, "", ErrNotFound
 		}
-		return nil, "", fmt.Errorf("blobstore/fs: open %q: %w", key, err)
+		return nil, "", fmt.Errorf("objectstore/fs: open %q: %w", key, err)
 	}
 	return file, etag, nil
 }
@@ -173,12 +173,12 @@ func (f *FS) GetRange(ctx context.Context, key string, off, length int64) (io.Re
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("blobstore/fs: open %q: %w", key, err)
+		return nil, fmt.Errorf("objectstore/fs: open %q: %w", key, err)
 	}
 	st, err := file.Stat()
 	if err != nil {
 		_ = file.Close()
-		return nil, fmt.Errorf("blobstore/fs: stat %q: %w", key, err)
+		return nil, fmt.Errorf("objectstore/fs: stat %q: %w", key, err)
 	}
 	size := st.Size()
 	start := off
@@ -193,7 +193,7 @@ func (f *FS) GetRange(ctx context.Context, key string, off, length int64) (io.Re
 	}
 	if _, err := file.Seek(start, io.SeekStart); err != nil {
 		_ = file.Close()
-		return nil, fmt.Errorf("blobstore/fs: seek %q: %w", key, err)
+		return nil, fmt.Errorf("objectstore/fs: seek %q: %w", key, err)
 	}
 	if length <= 0 {
 		return file, nil
@@ -257,7 +257,7 @@ func (f *FS) List(ctx context.Context, prefix, startAfter string) ([]ObjectInfo,
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("blobstore/fs: walk: %w", err)
+		return nil, fmt.Errorf("objectstore/fs: walk: %w", err)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	const maxKeys = 1000
@@ -283,11 +283,11 @@ func (f *FS) Stat(ctx context.Context, key string) (ObjectInfo, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return ObjectInfo{}, ErrNotFound
 		}
-		return ObjectInfo{}, fmt.Errorf("blobstore/fs: stat %q: %w", key, err)
+		return ObjectInfo{}, fmt.Errorf("objectstore/fs: stat %q: %w", key, err)
 	}
 	etag, err := fileETag(path)
 	if err != nil {
-		return ObjectInfo{}, fmt.Errorf("blobstore/fs: etag %q: %w", key, err)
+		return ObjectInfo{}, fmt.Errorf("objectstore/fs: etag %q: %w", key, err)
 	}
 	return ObjectInfo{
 		Key:          key,
@@ -310,7 +310,7 @@ func (f *FS) Delete(ctx context.Context, key string) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return ErrNotFound
 		}
-		return fmt.Errorf("blobstore/fs: remove %q: %w", key, err)
+		return fmt.Errorf("objectstore/fs: remove %q: %w", key, err)
 	}
 	// Best-effort prune of empty parent dirs up to root.
 	dir := filepath.Dir(path)
@@ -336,7 +336,7 @@ func checkIfMatch(path string, ifMatch *string) error {
 		if _, err := os.Stat(path); err == nil {
 			return ErrPreconditionFailed
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("blobstore/fs: stat: %w", err)
+			return fmt.Errorf("objectstore/fs: stat: %w", err)
 		}
 		return nil
 	}
@@ -345,7 +345,7 @@ func checkIfMatch(path string, ifMatch *string) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return ErrPreconditionFailed
 		}
-		return fmt.Errorf("blobstore/fs: etag: %w", err)
+		return fmt.Errorf("objectstore/fs: etag: %w", err)
 	}
 	if cur != *ifMatch {
 		return ErrPreconditionFailed
@@ -362,13 +362,13 @@ func commit(tmp, path string, mustBeAbsent bool) error {
 			if errors.Is(err, os.ErrExist) {
 				return ErrPreconditionFailed
 			}
-			return fmt.Errorf("blobstore/fs: link: %w", err)
+			return fmt.Errorf("objectstore/fs: link: %w", err)
 		}
 		_ = os.Remove(tmp)
 		return nil
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("blobstore/fs: rename: %w", err)
+		return fmt.Errorf("objectstore/fs: rename: %w", err)
 	}
 	return nil
 }
@@ -399,24 +399,24 @@ func (l *limitedFile) Read(p []byte) (int, error) {
 func writeAndSync(path string, body io.Reader, length int64) (string, error) {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return "", fmt.Errorf("blobstore/fs: create %q: %w", path, err)
+		return "", fmt.Errorf("objectstore/fs: create %q: %w", path, err)
 	}
 	h := sha256.New()
 	written, copyErr := io.Copy(io.MultiWriter(file, h), body)
 	if copyErr != nil {
 		_ = file.Close()
-		return "", fmt.Errorf("blobstore/fs: write %q: %w", path, copyErr)
+		return "", fmt.Errorf("objectstore/fs: write %q: %w", path, copyErr)
 	}
 	if length >= 0 && written != length {
 		_ = file.Close()
-		return "", fmt.Errorf("blobstore/fs: wrote %d != declared %d", written, length)
+		return "", fmt.Errorf("objectstore/fs: wrote %d != declared %d", written, length)
 	}
 	if err := file.Sync(); err != nil {
 		_ = file.Close()
-		return "", fmt.Errorf("blobstore/fs: fsync %q: %w", path, err)
+		return "", fmt.Errorf("objectstore/fs: fsync %q: %w", path, err)
 	}
 	if err := file.Close(); err != nil {
-		return "", fmt.Errorf("blobstore/fs: close %q: %w", path, err)
+		return "", fmt.Errorf("objectstore/fs: close %q: %w", path, err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }

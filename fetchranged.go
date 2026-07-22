@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"bytes"
@@ -40,7 +40,7 @@ func (o FetchOpts) withDefaults() FetchOpts {
 // object being missing or the context ending, it degrades to the
 // single-stream path rather than failing the download.
 //
-// Integrity checking stays with the caller (blobstore keys carry a sha
+// Integrity checking stays with the caller (objectstore keys carry a sha
 // the caller verifies before an atomic rename).
 func FetchRangedAt(ctx context.Context, b Bucket, key string, dst io.WriterAt, opts FetchOpts) (ObjectInfo, error) {
 	opts = opts.withDefaults()
@@ -55,7 +55,7 @@ func FetchRangedAt(ctx context.Context, b Bucket, key string, dst io.WriterAt, o
 		if errors.Is(err, ErrNotFound) || ctx.Err() != nil {
 			return info, err
 		}
-		slog.Warn("blobstore: ranged fetch failed; degrading to single stream", "key", key, "err", err)
+		slog.Warn("objectstore: ranged fetch failed; degrading to single stream", "key", key, "err", err)
 		return info, fetchSingle(ctx, b, key, dst)
 	}
 	return info, nil
@@ -68,7 +68,7 @@ func fetchSingle(ctx context.Context, b Bucket, key string, dst io.WriterAt) err
 	}
 	defer body.Close()
 	if _, err := io.Copy(io.NewOffsetWriter(dst, 0), body); err != nil {
-		return fmt.Errorf("blobstore: fetch %q: %w", key, err)
+		return fmt.Errorf("objectstore: fetch %q: %w", key, err)
 	}
 	return nil
 }
@@ -121,10 +121,10 @@ func fetchOnePart(ctx context.Context, b Bucket, key string, off, ln int64, dst 
 	defer body.Close()
 	n, err := io.Copy(io.NewOffsetWriter(dst, off), body)
 	if err != nil {
-		return fmt.Errorf("blobstore: fetch %q part @%d: %w", key, off, err)
+		return fmt.Errorf("objectstore: fetch %q part @%d: %w", key, off, err)
 	}
 	if n != ln {
-		return fmt.Errorf("blobstore: fetch %q part @%d: got %d of %d bytes", key, off, n, ln)
+		return fmt.Errorf("objectstore: fetch %q part @%d: got %d of %d bytes", key, off, n, ln)
 	}
 	return nil
 }
@@ -209,7 +209,7 @@ func (r *orderedReader) fetchPart(off, ln int64) ([]byte, error) {
 	defer body.Close()
 	buf := make([]byte, ln)
 	if _, err := io.ReadFull(body, buf); err != nil {
-		return nil, fmt.Errorf("blobstore: fetch %q part @%d: %w", r.key, off, err)
+		return nil, fmt.Errorf("objectstore: fetch %q part @%d: %w", r.key, off, err)
 	}
 	return buf, nil
 }
@@ -235,7 +235,7 @@ func (r *orderedReader) Read(p []byte) (int, error) {
 			}
 			if r.consumed == 0 && !errors.Is(res.err, ErrNotFound) {
 				// Nothing delivered yet: degrade to a single stream.
-				slog.Warn("blobstore: ranged read failed; degrading to single stream", "key", r.key, "err", res.err)
+				slog.Warn("objectstore: ranged read failed; degrading to single stream", "key", r.key, "err", res.err)
 				r.cancel()
 				body, _, err := r.b.Get(r.parent, r.key)
 				if err != nil {

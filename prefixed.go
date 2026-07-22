@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 // inner bucket unchanged.
 //
 // Useful for topic-scoping a shared bucket across multiple workloads:
-// `blobstore.Prefixed(bucket, "images/")` and
-// `blobstore.Prefixed(bucket, "documents/")` give two isolated views
+// `objectstore.Prefixed(bucket, "images/")` and
+// `objectstore.Prefixed(bucket, "documents/")` give two isolated views
 // over one underlying connection.
 func Prefixed(inner Bucket, prefix string) Bucket {
 	if prefix == "" {

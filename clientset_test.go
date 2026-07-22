@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"io"

@@ -1,4 +1,4 @@
-package blobstore_test
+package objectstore_test
 
 // Conformance suite for any Bucket impl. Exported as runConformance
 // so an S3 integration suite can run the same cases against a live
@@ -13,14 +13,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/wjordan/blobstore"
+	"github.com/wjordan/objectstore"
 )
 
-func runConformance(t *testing.T, name string, factory func(t *testing.T) blobstore.Bucket) {
+func runConformance(t *testing.T, name string, factory func(t *testing.T) objectstore.Bucket) {
 	t.Helper()
 	cases := []struct {
 		name string
-		fn   func(t *testing.T, b blobstore.Bucket)
+		fn   func(t *testing.T, b objectstore.Bucket)
 	}{
 		{"Put_FreshKey", testPutFresh},
 		{"Put_IfAbsent_RejectsDuplicate", testPutIfAbsentDuplicate},
@@ -55,8 +55,8 @@ func runConformance(t *testing.T, name string, factory func(t *testing.T) blobst
 }
 
 func TestFS(t *testing.T) {
-	runConformance(t, "FS", func(t *testing.T) blobstore.Bucket {
-		fb, err := blobstore.OpenFS(t.TempDir())
+	runConformance(t, "FS", func(t *testing.T) objectstore.Bucket {
+		fb, err := objectstore.OpenFS(t.TempDir())
 		if err != nil {
 			t.Fatalf("OpenFS: %v", err)
 		}
@@ -66,14 +66,14 @@ func TestFS(t *testing.T) {
 
 // --- helpers -----------------------------------------------------------------
 
-func putBytes(t *testing.T, b blobstore.Bucket, key string, body []byte) {
+func putBytes(t *testing.T, b objectstore.Bucket, key string, body []byte) {
 	t.Helper()
-	if _, err := b.Put(context.Background(), key, bytes.NewReader(body), int64(len(body)), blobstore.IfAbsent()); err != nil {
+	if _, err := b.Put(context.Background(), key, bytes.NewReader(body), int64(len(body)), objectstore.IfAbsent()); err != nil {
 		t.Fatalf("Put %q: %v", key, err)
 	}
 }
 
-func getAll(t *testing.T, b blobstore.Bucket, key string) ([]byte, string) {
+func getAll(t *testing.T, b objectstore.Bucket, key string) ([]byte, string) {
 	t.Helper()
 	rc, etag, err := b.Get(context.Background(), key)
 	if err != nil {
@@ -89,7 +89,7 @@ func getAll(t *testing.T, b blobstore.Bucket, key string) ([]byte, string) {
 
 // --- cases -------------------------------------------------------------------
 
-func testPutFresh(t *testing.T, b blobstore.Bucket) {
+func testPutFresh(t *testing.T, b objectstore.Bucket) {
 	putBytes(t, b, "a/b/c.bin", []byte("hello"))
 	body, _ := getAll(t, b, "a/b/c.bin")
 	if !bytes.Equal(body, []byte("hello")) {
@@ -97,10 +97,10 @@ func testPutFresh(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testPutIfAbsentDuplicate(t *testing.T, b blobstore.Bucket) {
+func testPutIfAbsentDuplicate(t *testing.T, b objectstore.Bucket) {
 	putBytes(t, b, "k", []byte("first"))
-	_, err := b.Put(context.Background(), "k", bytes.NewReader([]byte("second")), 6, blobstore.IfAbsent())
-	if !errors.Is(err, blobstore.ErrPreconditionFailed) {
+	_, err := b.Put(context.Background(), "k", bytes.NewReader([]byte("second")), 6, objectstore.IfAbsent())
+	if !errors.Is(err, objectstore.ErrPreconditionFailed) {
 		t.Fatalf("Put duplicate err = %v, want ErrPreconditionFailed", err)
 	}
 	body, _ := getAll(t, b, "k")
@@ -109,18 +109,18 @@ func testPutIfAbsentDuplicate(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testPutLengthMismatch(t *testing.T, b blobstore.Bucket) {
-	_, err := b.Put(context.Background(), "k", bytes.NewReader([]byte("hello")), 99, blobstore.IfAbsent())
+func testPutLengthMismatch(t *testing.T, b objectstore.Bucket) {
+	_, err := b.Put(context.Background(), "k", bytes.NewReader([]byte("hello")), 99, objectstore.IfAbsent())
 	if err == nil {
 		t.Fatalf("expected error on length mismatch, got nil")
 	}
 	_, _, err = b.Get(context.Background(), "k")
-	if !errors.Is(err, blobstore.ErrNotFound) {
+	if !errors.Is(err, objectstore.ErrNotFound) {
 		t.Fatalf("after length-mismatch put, Get = %v, want ErrNotFound", err)
 	}
 }
 
-func testPutNoIfMatch(t *testing.T, b blobstore.Bucket) {
+func testPutNoIfMatch(t *testing.T, b objectstore.Bucket) {
 	ctx := context.Background()
 	etag1, err := b.Put(ctx, "k", bytes.NewReader([]byte("v1")), 2, nil)
 	if err != nil {
@@ -142,14 +142,14 @@ func testPutNoIfMatch(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testPutIfMatch(t *testing.T, b blobstore.Bucket) {
+func testPutIfMatch(t *testing.T, b objectstore.Bucket) {
 	ctx := context.Background()
 	etag1, err := b.Put(ctx, "k", bytes.NewReader([]byte("v1")), 2, nil)
 	if err != nil {
 		t.Fatalf("Put v1: %v", err)
 	}
 	wrong := "deadbeef"
-	if _, err := b.Put(ctx, "k", bytes.NewReader([]byte("v2")), 2, &wrong); !errors.Is(err, blobstore.ErrPreconditionFailed) {
+	if _, err := b.Put(ctx, "k", bytes.NewReader([]byte("v2")), 2, &wrong); !errors.Is(err, objectstore.ErrPreconditionFailed) {
 		t.Fatalf("Put wrong etag: err = %v, want ErrPreconditionFailed", err)
 	}
 	etag2, err := b.Put(ctx, "k", bytes.NewReader([]byte("v2")), 2, &etag1)
@@ -161,16 +161,16 @@ func testPutIfMatch(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testPutIfMatchMissing(t *testing.T, b blobstore.Bucket) {
+func testPutIfMatchMissing(t *testing.T, b objectstore.Bucket) {
 	some := "anything"
 	_, err := b.Put(context.Background(), "k", bytes.NewReader([]byte("v")), 1, &some)
-	if !errors.Is(err, blobstore.ErrPreconditionFailed) {
+	if !errors.Is(err, objectstore.ErrPreconditionFailed) {
 		t.Fatalf("Put IfMatch on missing: err = %v, want ErrPreconditionFailed", err)
 	}
 }
 
-func testPutStreamFresh(t *testing.T, b blobstore.Bucket) {
-	if _, err := b.PutStream(context.Background(), "stream/k", bytes.NewReader([]byte("streamed")), blobstore.IfAbsent()); err != nil {
+func testPutStreamFresh(t *testing.T, b objectstore.Bucket) {
+	if _, err := b.PutStream(context.Background(), "stream/k", bytes.NewReader([]byte("streamed")), objectstore.IfAbsent()); err != nil {
 		t.Fatalf("PutStream: %v", err)
 	}
 	body, _ := getAll(t, b, "stream/k")
@@ -179,24 +179,24 @@ func testPutStreamFresh(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testPutStreamIfAbsentDuplicate(t *testing.T, b blobstore.Bucket) {
+func testPutStreamIfAbsentDuplicate(t *testing.T, b objectstore.Bucket) {
 	ctx := context.Background()
-	if _, err := b.PutStream(ctx, "k", bytes.NewReader([]byte("v1")), blobstore.IfAbsent()); err != nil {
+	if _, err := b.PutStream(ctx, "k", bytes.NewReader([]byte("v1")), objectstore.IfAbsent()); err != nil {
 		t.Fatalf("first PutStream: %v", err)
 	}
-	if _, err := b.PutStream(ctx, "k", bytes.NewReader([]byte("v2")), blobstore.IfAbsent()); !errors.Is(err, blobstore.ErrPreconditionFailed) {
+	if _, err := b.PutStream(ctx, "k", bytes.NewReader([]byte("v2")), objectstore.IfAbsent()); !errors.Is(err, objectstore.ErrPreconditionFailed) {
 		t.Fatalf("second PutStream: err = %v, want ErrPreconditionFailed", err)
 	}
 }
 
-func testGetMissing(t *testing.T, b blobstore.Bucket) {
+func testGetMissing(t *testing.T, b objectstore.Bucket) {
 	_, _, err := b.Get(context.Background(), "missing")
-	if !errors.Is(err, blobstore.ErrNotFound) {
+	if !errors.Is(err, objectstore.ErrNotFound) {
 		t.Fatalf("Get missing: err = %v, want ErrNotFound", err)
 	}
 }
 
-func testGetRoundtrip(t *testing.T, b blobstore.Bucket) {
+func testGetRoundtrip(t *testing.T, b objectstore.Bucket) {
 	body := bytes.Repeat([]byte("abc"), 1000)
 	putBytes(t, b, "k", body)
 	got, _ := getAll(t, b, "k")
@@ -205,7 +205,7 @@ func testGetRoundtrip(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testGetRangeFullObject(t *testing.T, b blobstore.Bucket) {
+func testGetRangeFullObject(t *testing.T, b objectstore.Bucket) {
 	body := []byte("0123456789")
 	putBytes(t, b, "k", body)
 	rc, err := b.GetRange(context.Background(), "k", 0, 0)
@@ -219,7 +219,7 @@ func testGetRangeFullObject(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testGetRangeMid(t *testing.T, b blobstore.Bucket) {
+func testGetRangeMid(t *testing.T, b objectstore.Bucket) {
 	body := []byte("0123456789")
 	putBytes(t, b, "k", body)
 	rc, err := b.GetRange(context.Background(), "k", 3, 4)
@@ -233,7 +233,7 @@ func testGetRangeMid(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testGetRangeSuffix(t *testing.T, b blobstore.Bucket) {
+func testGetRangeSuffix(t *testing.T, b objectstore.Bucket) {
 	body := []byte("0123456789")
 	putBytes(t, b, "k", body)
 	rc, err := b.GetRange(context.Background(), "k", -3, 0)
@@ -247,7 +247,7 @@ func testGetRangeSuffix(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testGetRangeBeyondEnd(t *testing.T, b blobstore.Bucket) {
+func testGetRangeBeyondEnd(t *testing.T, b objectstore.Bucket) {
 	body := []byte("0123456789")
 	putBytes(t, b, "k", body)
 	rc, err := b.GetRange(context.Background(), "k", 8, 1000)
@@ -261,14 +261,14 @@ func testGetRangeBeyondEnd(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testGetRangeMissing(t *testing.T, b blobstore.Bucket) {
+func testGetRangeMissing(t *testing.T, b objectstore.Bucket) {
 	_, err := b.GetRange(context.Background(), "missing", 0, 100)
-	if !errors.Is(err, blobstore.ErrNotFound) {
+	if !errors.Is(err, objectstore.ErrNotFound) {
 		t.Fatalf("GetRange missing: err = %v, want ErrNotFound", err)
 	}
 }
 
-func testListEmpty(t *testing.T, b blobstore.Bucket) {
+func testListEmpty(t *testing.T, b objectstore.Bucket) {
 	objs, err := b.List(context.Background(), "anything/", "")
 	if err != nil {
 		t.Fatalf("List empty: %v", err)
@@ -278,7 +278,7 @@ func testListEmpty(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testListPrefixSorted(t *testing.T, b blobstore.Bucket) {
+func testListPrefixSorted(t *testing.T, b objectstore.Bucket) {
 	for _, k := range []string{"a/0001", "a/0003", "a/0002", "b/zzz", "c/foo"} {
 		putBytes(t, b, k, []byte(k))
 	}
@@ -303,7 +303,7 @@ func testListPrefixSorted(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testListStartAfter(t *testing.T, b blobstore.Bucket) {
+func testListStartAfter(t *testing.T, b objectstore.Bucket) {
 	for _, k := range []string{"p/01", "p/02", "p/03", "p/04"} {
 		putBytes(t, b, k, []byte("x"))
 	}
@@ -322,7 +322,7 @@ func testListStartAfter(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testStatExisting(t *testing.T, b blobstore.Bucket) {
+func testStatExisting(t *testing.T, b objectstore.Bucket) {
 	body := []byte("hello-stat")
 	putBytes(t, b, "stat/key", body)
 	info, err := b.Stat(context.Background(), "stat/key")
@@ -337,32 +337,32 @@ func testStatExisting(t *testing.T, b blobstore.Bucket) {
 	}
 }
 
-func testStatMissing(t *testing.T, b blobstore.Bucket) {
+func testStatMissing(t *testing.T, b objectstore.Bucket) {
 	_, err := b.Stat(context.Background(), "definitely/missing")
-	if !errors.Is(err, blobstore.ErrNotFound) {
+	if !errors.Is(err, objectstore.ErrNotFound) {
 		t.Fatalf("Stat missing: err = %v, want ErrNotFound", err)
 	}
 }
 
-func testDeleteExisting(t *testing.T, b blobstore.Bucket) {
+func testDeleteExisting(t *testing.T, b objectstore.Bucket) {
 	putBytes(t, b, "k", []byte("x"))
 	if err := b.Delete(context.Background(), "k"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	_, _, err := b.Get(context.Background(), "k")
-	if !errors.Is(err, blobstore.ErrNotFound) {
+	if !errors.Is(err, objectstore.ErrNotFound) {
 		t.Fatalf("after Delete: Get = %v, want ErrNotFound", err)
 	}
 }
 
-func testDeleteMissing(t *testing.T, b blobstore.Bucket) {
+func testDeleteMissing(t *testing.T, b objectstore.Bucket) {
 	err := b.Delete(context.Background(), "missing")
-	if !errors.Is(err, blobstore.ErrNotFound) {
+	if !errors.Is(err, objectstore.ErrNotFound) {
 		t.Fatalf("Delete missing: err = %v, want ErrNotFound", err)
 	}
 }
 
-func testConcurrentIfAbsent(t *testing.T, b blobstore.Bucket) {
+func testConcurrentIfAbsent(t *testing.T, b objectstore.Bucket) {
 	const N = 16
 	ctx := context.Background()
 	var wg sync.WaitGroup
@@ -372,10 +372,10 @@ func testConcurrentIfAbsent(t *testing.T, b blobstore.Bucket) {
 		go func(i int) {
 			defer wg.Done()
 			body := []byte(fmt.Sprintf("worker-%d", i))
-			_, err := b.Put(ctx, "shared", bytes.NewReader(body), int64(len(body)), blobstore.IfAbsent())
+			_, err := b.Put(ctx, "shared", bytes.NewReader(body), int64(len(body)), objectstore.IfAbsent())
 			if err == nil {
 				winners <- i
-			} else if !errors.Is(err, blobstore.ErrPreconditionFailed) {
+			} else if !errors.Is(err, objectstore.ErrPreconditionFailed) {
 				t.Errorf("worker %d: unexpected err %v", i, err)
 			}
 		}(i)

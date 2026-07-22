@@ -1,4 +1,4 @@
-package blobstore_test
+package objectstore_test
 
 import (
 	"context"
@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wjordan/blobstore"
+	"github.com/wjordan/objectstore"
 )
 
 // fastHeal keeps heal retries fast and the watchdog effectively off
 // (huge window) so tests exercise only error-driven healing.
-var fastHeal = blobstore.HealOpts{Backoff: time.Nanosecond, Window: time.Hour}
+var fastHeal = objectstore.HealOpts{Backoff: time.Nanosecond, Window: time.Hour}
 
 // scriptedBucket wraps a Bucket, records every GetRange, and lets a
 // test mutate each returned body by call index (0-based).
 type scriptedBucket struct {
-	blobstore.Bucket
+	objectstore.Bucket
 	mu      sync.Mutex
 	nRange  int
 	ranges  [][2]int64
@@ -85,9 +85,9 @@ func (m *mutatedBody) Read(p []byte) (int, error) {
 
 func (m *mutatedBody) Close() error { return m.c.Close() }
 
-func newScripted(t *testing.T, key, content string) (*scriptedBucket, blobstore.Bucket) {
+func newScripted(t *testing.T, key, content string) (*scriptedBucket, objectstore.Bucket) {
 	t.Helper()
-	fs, err := blobstore.OpenFS(t.TempDir())
+	fs, err := objectstore.OpenFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func newScripted(t *testing.T, key, content string) (*scriptedBucket, blobstore.
 		t.Fatal(err)
 	}
 	sb := &scriptedBucket{Bucket: fs}
-	return sb, blobstore.NewHealing(sb, fastHeal)
+	return sb, objectstore.NewHealing(sb, fastHeal)
 }
 
 func TestHealResumesAfterMidStreamError(t *testing.T) {
@@ -201,7 +201,7 @@ func TestHealAttemptsExhausted(t *testing.T) {
 	sb, _ := newScripted(t, "k", strings.Repeat("q", 100))
 	opts := fastHeal
 	opts.Attempts = 3
-	h := blobstore.NewHealing(sb, opts)
+	h := objectstore.NewHealing(sb, opts)
 	sb.onRange = func(call int, body io.ReadCloser) io.ReadCloser {
 		return errAfter(1, body) // every connection dies after 1 byte
 	}
@@ -280,7 +280,7 @@ func (s slowBody) Read(p []byte) (int, error) {
 	return s.ReadCloser.Read(p[:min(len(p), 1)])
 }
 
-func readRange(t *testing.T, b blobstore.Bucket, n int64) ([]byte, error) {
+func readRange(t *testing.T, b objectstore.Bucket, n int64) ([]byte, error) {
 	t.Helper()
 	body, err := b.GetRange(context.Background(), "k", 0, n)
 	if err != nil {
@@ -293,7 +293,7 @@ func readRange(t *testing.T, b blobstore.Bucket, n int64) ([]byte, error) {
 func TestWatchdogKillsStalledBodyAndHeals(t *testing.T) {
 	content := strings.Repeat("w", 100)
 	sb, _ := newScripted(t, "k", content)
-	h := blobstore.NewHealing(sb, blobstore.HealOpts{
+	h := objectstore.NewHealing(sb, objectstore.HealOpts{
 		FloorBps: 1 << 30, // any real rate is "too slow"
 		Window:   40 * time.Millisecond,
 		Backoff:  time.Nanosecond,
@@ -329,7 +329,7 @@ func TestWatchdogKillsStalledBodyAndHeals(t *testing.T) {
 func TestFinalAttemptAcceptsSlowProgress(t *testing.T) {
 	content := strings.Repeat("s", 64)
 	sb, _ := newScripted(t, "k", content)
-	h := blobstore.NewHealing(sb, blobstore.HealOpts{
+	h := objectstore.NewHealing(sb, objectstore.HealOpts{
 		FloorBps: 1 << 20, // slowBody is always below this floor
 		Window:   80 * time.Millisecond,
 		Attempts: 1,
@@ -348,7 +348,7 @@ func TestFinalAttemptAcceptsSlowProgress(t *testing.T) {
 
 func TestFinalAttemptStillKillsStall(t *testing.T) {
 	sb, _ := newScripted(t, "k", strings.Repeat("x", 100))
-	h := blobstore.NewHealing(sb, blobstore.HealOpts{
+	h := objectstore.NewHealing(sb, objectstore.HealOpts{
 		FloorBps: 1 << 30,
 		Window:   40 * time.Millisecond,
 		Attempts: 1,
@@ -362,11 +362,11 @@ func TestFinalAttemptStillKillsStall(t *testing.T) {
 }
 
 func TestHealingConformance(t *testing.T) {
-	runConformance(t, "HealingFS", func(t *testing.T) blobstore.Bucket {
-		fb, err := blobstore.OpenFS(t.TempDir())
+	runConformance(t, "HealingFS", func(t *testing.T) objectstore.Bucket {
+		fb, err := objectstore.OpenFS(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}
-		return blobstore.NewHealing(fb, blobstore.HealOpts{Backoff: time.Nanosecond})
+		return objectstore.NewHealing(fb, objectstore.HealOpts{Backoff: time.Nanosecond})
 	})
 }

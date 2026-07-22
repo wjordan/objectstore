@@ -1,4 +1,4 @@
-package blobstore
+package objectstore
 
 import (
 	"context"
@@ -80,7 +80,7 @@ type S3 struct {
 // round-trip; the first call surfaces connectivity issues.
 func OpenS3(ctx context.Context, cfg S3Config) (*S3, error) {
 	if cfg.Bucket == "" {
-		return nil, errors.New("blobstore/s3: Bucket required")
+		return nil, errors.New("objectstore/s3: Bucket required")
 	}
 	prefix := cfg.Prefix
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
@@ -112,7 +112,7 @@ func OpenS3(ctx context.Context, cfg S3Config) (*S3, error) {
 	}
 	awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("blobstore/s3: load config: %w", err)
+		return nil, fmt.Errorf("objectstore/s3: load config: %w", err)
 	}
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		// S3-compatible stores often omit optional checksum headers on
@@ -136,7 +136,7 @@ func OpenS3(ctx context.Context, cfg S3Config) (*S3, error) {
 
 func (a *S3) keyOf(k string) string { return a.prefix + k }
 
-// applyIfMatch maps blobstore's ifMatch convention onto an S3 PutObjectInput.
+// applyIfMatch maps objectstore's ifMatch convention onto an S3 PutObjectInput.
 //   - nil:    no precondition.
 //   - &"":    IfNoneMatch=*  (must not exist)
 //   - &etag:  IfMatch=etag   (must match)
@@ -188,7 +188,7 @@ func (a *S3) Put(ctx context.Context, key string, body io.Reader, length int64, 
 		if isPreconditionFailed(err) {
 			return "", ErrPreconditionFailed
 		}
-		return "", fmt.Errorf("blobstore/s3: Put %q: %w", key, err)
+		return "", fmt.Errorf("objectstore/s3: Put %q: %w", key, err)
 	}
 	return strippedETag(out.ETag), nil
 }
@@ -212,7 +212,7 @@ func (a *S3) PutStream(ctx context.Context, key string, body io.Reader, ifMatch 
 		if isPreconditionFailed(err) {
 			return "", ErrPreconditionFailed
 		}
-		return "", fmt.Errorf("blobstore/s3: PutStream %q: %w", key, err)
+		return "", fmt.Errorf("objectstore/s3: PutStream %q: %w", key, err)
 	}
 	return strippedETag(out.ETag), nil
 }
@@ -230,7 +230,7 @@ func (a *S3) Get(ctx context.Context, key string) (io.ReadCloser, string, error)
 		if isNotFound(err) {
 			return nil, "", ErrNotFound
 		}
-		return nil, "", fmt.Errorf("blobstore/s3: Get %q: %w", key, err)
+		return nil, "", fmt.Errorf("objectstore/s3: Get %q: %w", key, err)
 	}
 	return out.Body, strippedETag(out.ETag), nil
 }
@@ -246,7 +246,7 @@ func (a *S3) GetRange(ctx context.Context, key string, off, length int64) (io.Re
 		if isNotFound(err) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("blobstore/s3: GetRange %q %s: %w", key, rangeHeader, err)
+		return nil, fmt.Errorf("objectstore/s3: GetRange %q %s: %w", key, rangeHeader, err)
 	}
 	return out.Body, nil
 }
@@ -261,7 +261,7 @@ func (a *S3) List(ctx context.Context, prefix, startAfter string) ([]ObjectInfo,
 	}
 	out, err := a.client.ListObjectsV2(ctx, in)
 	if err != nil {
-		return nil, fmt.Errorf("blobstore/s3: List %q: %w", prefix, err)
+		return nil, fmt.Errorf("objectstore/s3: List %q: %w", prefix, err)
 	}
 	result := make([]ObjectInfo, 0, len(out.Contents))
 	for _, c := range out.Contents {
@@ -293,7 +293,7 @@ func (a *S3) Stat(ctx context.Context, key string) (ObjectInfo, error) {
 		if isNotFound(err) {
 			return ObjectInfo{}, ErrNotFound
 		}
-		return ObjectInfo{}, fmt.Errorf("blobstore/s3: Stat %q: %w", key, err)
+		return ObjectInfo{}, fmt.Errorf("objectstore/s3: Stat %q: %w", key, err)
 	}
 	info := ObjectInfo{Key: key, ETag: strippedETag(out.ETag)}
 	if out.ContentLength != nil {
@@ -316,13 +316,13 @@ func (a *S3) Delete(ctx context.Context, key string) error {
 		if isNotFound(err) {
 			return ErrNotFound
 		}
-		return fmt.Errorf("blobstore/s3: Delete head %q: %w", key, err)
+		return fmt.Errorf("objectstore/s3: Delete head %q: %w", key, err)
 	}
 	if _, err := a.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: awsv2.String(a.bucket),
 		Key:    awsv2.String(a.keyOf(key)),
 	}); err != nil {
-		return fmt.Errorf("blobstore/s3: Delete %q: %w", key, err)
+		return fmt.Errorf("objectstore/s3: Delete %q: %w", key, err)
 	}
 	return nil
 }

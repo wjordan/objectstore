@@ -1,4 +1,4 @@
-package blobstore_test
+package objectstore_test
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/wjordan/blobstore"
+	"github.com/wjordan/objectstore"
 )
 
 // memWriterAt is a bounds-checked in-memory io.WriterAt.
@@ -27,9 +27,9 @@ func (w *memWriterAt) WriteAt(p []byte, off int64) (int, error) {
 	return copy(w.buf[off:], p), nil
 }
 
-func putRandom(t *testing.T, size int) (blobstore.Bucket, []byte) {
+func putRandom(t *testing.T, size int) (objectstore.Bucket, []byte) {
 	t.Helper()
-	fs, err := blobstore.OpenFS(t.TempDir())
+	fs, err := objectstore.OpenFS(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,12 +43,12 @@ func putRandom(t *testing.T, size int) (blobstore.Bucket, []byte) {
 
 // smallParts exercises the ranged path on tiny objects: unaligned part
 // size so the last part is short.
-var smallParts = blobstore.FetchOpts{Threshold: 1 << 10, PartSize: 100, Concurrency: 4}
+var smallParts = objectstore.FetchOpts{Threshold: 1 << 10, PartSize: 100, Concurrency: 4}
 
 func TestFetchRangedAtReassembles(t *testing.T) {
 	b, content := putRandom(t, 100*100+37) // unaligned tail part
 	var dst memWriterAt
-	info, err := blobstore.FetchRangedAt(context.Background(), b, "k", &dst, smallParts)
+	info, err := objectstore.FetchRangedAt(context.Background(), b, "k", &dst, smallParts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestFetchRangedAtBelowThresholdSingleGet(t *testing.T) {
 	b, content := putRandom(t, 500)
 	sb := &scriptedBucket{Bucket: b}
 	var dst memWriterAt
-	if _, err := blobstore.FetchRangedAt(context.Background(), sb, "k", &dst, smallParts); err != nil {
+	if _, err := objectstore.FetchRangedAt(context.Background(), sb, "k", &dst, smallParts); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(dst.buf, content) {
@@ -78,14 +78,14 @@ func TestFetchRangedAtBelowThresholdSingleGet(t *testing.T) {
 func TestFetchRangedAtMissing(t *testing.T) {
 	b, _ := putRandom(t, 10)
 	var dst memWriterAt
-	_, err := blobstore.FetchRangedAt(context.Background(), b, "missing", &dst, smallParts)
-	if !errors.Is(err, blobstore.ErrNotFound) {
+	_, err := objectstore.FetchRangedAt(context.Background(), b, "missing", &dst, smallParts)
+	if !errors.Is(err, objectstore.ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
 }
 
 // rangeFailBucket fails every GetRange (a backend without Range support).
-type rangeFailBucket struct{ blobstore.Bucket }
+type rangeFailBucket struct{ objectstore.Bucket }
 
 func (r *rangeFailBucket) GetRange(ctx context.Context, key string, off, length int64) (io.ReadCloser, error) {
 	return nil, errors.New("range not supported")
@@ -94,8 +94,8 @@ func (r *rangeFailBucket) GetRange(ctx context.Context, key string, off, length 
 func TestFetchRangedAtDegradesToSingleStream(t *testing.T) {
 	b, content := putRandom(t, 4<<10)
 	var dst memWriterAt
-	if _, err := blobstore.FetchRangedAt(context.Background(), &rangeFailBucket{b}, "k", &dst,
-		blobstore.FetchOpts{Threshold: 1 << 10, PartSize: 1 << 10, Concurrency: 2}); err != nil {
+	if _, err := objectstore.FetchRangedAt(context.Background(), &rangeFailBucket{b}, "k", &dst,
+		objectstore.FetchOpts{Threshold: 1 << 10, PartSize: 1 << 10, Concurrency: 2}); err != nil {
 		t.Fatalf("expected single-stream degrade, got %v", err)
 	}
 	if !bytes.Equal(dst.buf, content) {
@@ -105,8 +105,8 @@ func TestFetchRangedAtDegradesToSingleStream(t *testing.T) {
 
 func TestFetchReaderOrdered(t *testing.T) {
 	b, content := putRandom(t, 100*7+13)
-	body, info, err := blobstore.FetchReader(context.Background(), b, "k",
-		blobstore.FetchOpts{Threshold: 100, PartSize: 100, Concurrency: 3})
+	body, info, err := objectstore.FetchReader(context.Background(), b, "k",
+		objectstore.FetchOpts{Threshold: 100, PartSize: 100, Concurrency: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestFetchReaderOrdered(t *testing.T) {
 
 func TestFetchReaderBelowThreshold(t *testing.T) {
 	b, content := putRandom(t, 50)
-	body, _, err := blobstore.FetchReader(context.Background(), b, "k", smallParts)
+	body, _, err := objectstore.FetchReader(context.Background(), b, "k", smallParts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,8 +135,8 @@ func TestFetchReaderBelowThreshold(t *testing.T) {
 
 func TestFetchReaderDegradesToSingleStream(t *testing.T) {
 	b, content := putRandom(t, 4<<10)
-	body, _, err := blobstore.FetchReader(context.Background(), &rangeFailBucket{b}, "k",
-		blobstore.FetchOpts{Threshold: 1 << 10, PartSize: 1 << 10, Concurrency: 2})
+	body, _, err := objectstore.FetchReader(context.Background(), &rangeFailBucket{b}, "k",
+		objectstore.FetchOpts{Threshold: 1 << 10, PartSize: 1 << 10, Concurrency: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestFetchReaderDegradesToSingleStream(t *testing.T) {
 
 // failAtPart fails GetRange calls for a specific offset, persistently.
 type failAtPart struct {
-	blobstore.Bucket
+	objectstore.Bucket
 	off int64
 }
 
@@ -165,8 +165,8 @@ func (f *failAtPart) GetRange(ctx context.Context, key string, off, length int64
 
 func TestFetchReaderMidStreamFailureSurfaces(t *testing.T) {
 	b, content := putRandom(t, 1000)
-	body, _, err := blobstore.FetchReader(context.Background(), &failAtPart{b, 500}, "k",
-		blobstore.FetchOpts{Threshold: 100, PartSize: 100, Concurrency: 2})
+	body, _, err := objectstore.FetchReader(context.Background(), &failAtPart{b, 500}, "k",
+		objectstore.FetchOpts{Threshold: 100, PartSize: 100, Concurrency: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,10 +192,10 @@ func TestFetchRangedAtWithHealingBucket(t *testing.T) {
 		}
 		return body
 	}
-	h := blobstore.NewHealing(sb, fastHeal)
+	h := objectstore.NewHealing(sb, fastHeal)
 	var dst memWriterAt
-	if _, err := blobstore.FetchRangedAt(context.Background(), h, "k", &dst,
-		blobstore.FetchOpts{Threshold: 100, PartSize: 100, Concurrency: 2}); err != nil {
+	if _, err := objectstore.FetchRangedAt(context.Background(), h, "k", &dst,
+		objectstore.FetchOpts{Threshold: 100, PartSize: 100, Concurrency: 2}); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(dst.buf, content) {
