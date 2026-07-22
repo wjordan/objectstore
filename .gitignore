@@ -1,0 +1,11 @@
+# Build and test output
+/bin/
+/dist/
+*.test
+*.out
+coverage.out
+coverage.txt
+
+# Editors
+/.idea/
+*.swp
