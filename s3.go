@@ -186,7 +186,7 @@ func (a *S3) Put(ctx context.Context, key string, body io.Reader, length int64, 
 	out, err := a.client.PutObject(ctx, in, conditionalOpts(ifMatch)...)
 	if err != nil {
 		if isPreconditionFailed(err) {
-			return "", ErrPreconditionFailed
+			return "", fmt.Errorf("%w: %w", ErrPreconditionFailed, err)
 		}
 		return "", fmt.Errorf("objectstore/s3: Put %q: %w", key, err)
 	}
@@ -210,7 +210,7 @@ func (a *S3) PutStream(ctx context.Context, key string, body io.Reader, ifMatch 
 	out, err := a.uploader.Upload(ctx, in, upOpts...)
 	if err != nil {
 		if isPreconditionFailed(err) {
-			return "", ErrPreconditionFailed
+			return "", fmt.Errorf("%w: %w", ErrPreconditionFailed, err)
 		}
 		return "", fmt.Errorf("objectstore/s3: PutStream %q: %w", key, err)
 	}
