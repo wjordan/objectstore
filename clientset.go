@@ -189,11 +189,15 @@ func stripeTransport(forceIPv4 bool, counter *atomic.Int64) *http.Transport {
 			}
 			return &countingConn{Conn: conn, n: counter}, nil
 		},
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		MaxIdleConnsPerHost:   10,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		ForceAttemptHTTP2:   true,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		// Body watchdogs start only after RoundTrip returns. Bound the
+		// complementary failure mode where a live connection never returns
+		// response headers, so callers can retry on another stripe.
+		ResponseHeaderTimeout: defaultWindow,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 }

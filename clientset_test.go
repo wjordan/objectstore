@@ -68,6 +68,27 @@ func TestClientSetStripesAcrossConnections(t *testing.T) {
 	}
 }
 
+func TestStripeTransportBoundsResponseHeaderStall(t *testing.T) {
+	oldWindow := defaultWindow
+	defaultWindow = 20 * time.Millisecond
+	t.Cleanup(func() { defaultWindow = oldWindow })
+
+	release := make(chan struct{})
+	srv, _ := connCountingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		<-release
+	})
+	t.Cleanup(func() { close(release) })
+
+	client := &http.Client{Transport: testClientSet(t, srv, 1)}
+	started := time.Now()
+	if _, err := client.Get(srv.URL); err == nil {
+		t.Fatal("request waiting on response headers unexpectedly succeeded")
+	}
+	if elapsed := time.Since(started); elapsed > 200*time.Millisecond {
+		t.Fatalf("response-header timeout took %v, want under 200ms", elapsed)
+	}
+}
+
 func TestStripeSickDetection(t *testing.T) {
 	defer func(f func() time.Time) { clockNow = f }(clockNow)
 	now := time.Unix(1000, 0)
